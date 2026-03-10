@@ -1,0 +1,9 @@
+pymilvus
+python-dotenv
+openai
+PyPDF2
+python-docx
+fastapi
+uvicorn
+streamlit
+requests
