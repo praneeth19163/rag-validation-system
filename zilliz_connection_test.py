@@ -1,3 +1,10 @@
+"""
+Simple Milvus Connection Test Script.
+
+Tests connectivity to Milvus/Zilliz Cloud and lists existing collections.
+Uses credentials from .env file.
+"""
+
 import os
 from pymilvus import MilvusClient
 from dotenv import load_dotenv

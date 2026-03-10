@@ -1,3 +1,17 @@
+"""
+FastAPI Backend for RAG System with Validation.
+
+Provides REST API endpoints for:
+1. /query/vector - Query vector database (Ahex Technologies policies)
+2. /query/custom - Query with user-provided custom context
+
+Implements:
+- Prompt constraints (context, format, behavior, length, safety)
+- Retrieval grounding (semantic search in Milvus)
+- Validation prompts (JSON, context verification, hallucination detection)
+- Automatic validation skipping for out-of-scope questions
+"""
+
 import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel

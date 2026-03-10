@@ -1,3 +1,18 @@
+"""
+Streamlit UI for RAG (Retrieval-Augmented Generation) System with Validation.
+
+This application provides two query modes:
+1. Vector Database Mode: Query Ahex Technologies employee policies stored in Milvus
+2. Custom Context Mode: Upload documents (PDF/DOCX) or paste text for Q&A
+
+Features:
+- Prompt constraints for controlled LLM behavior
+- Retrieval grounding using vector database
+- Validation prompts to verify answer accuracy
+- File upload support for PDF and DOCX documents
+- Automatic text extraction and display
+"""
+
 import streamlit as st
 import requests
 import json

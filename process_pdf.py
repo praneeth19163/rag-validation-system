@@ -1,3 +1,15 @@
+"""
+PDF Processing and Vector Database Indexing Script.
+
+This script performs one-time setup to:
+1. Extract text from Ahex Technologies PDF document
+2. Intelligently chunk text based on document structure (headings and sections)
+3. Generate embeddings using OpenAI's text-embedding-3-small model
+4. Store embeddings in Milvus vector database (collection: ahex_technology)
+
+Run this script once before using the RAG system to create the vector database.
+"""
+
 import os
 from pymilvus import MilvusClient, DataType
 from dotenv import load_dotenv
