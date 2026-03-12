@@ -41,6 +41,13 @@ class CustomContextRequest(BaseModel):
     question: str
     context: str
 
+class BatchVectorQueryRequest(BaseModel):
+    inputs: list[str]
+
+class BatchCustomContextRequest(BaseModel):
+    inputs: list[str]
+    context: str
+
 # ============================================
 # SHARED FUNCTIONS
 # ============================================
@@ -87,6 +94,45 @@ def retrieve_from_vector_db(query, top_k=3):
         output_fields=["heading", "content"]
     )
     return results[0]
+
+
+def run_vector_query(question):
+    search_results = retrieve_from_vector_db(question, top_k=3)
+    context = build_vector_context(search_results)
+
+    retrieved_sources = [
+        {
+            "heading": result['entity']['heading'],
+            "similarity": float(result['distance'])
+        }
+        for result in search_results
+    ]
+
+    prompt = create_vector_prompt(question, context)
+    answer_text = generate_answer(prompt, "You are a helpful HR assistant for Ahex Technologies.")
+    answer_json = json.loads(answer_text)
+    source_found = answer_json.get('source_found', False)
+
+    if not source_found:
+        return {
+            "answer": answer_json,
+            "validation": {"valid": True, "reason": "Out of scope - correctly handled"},
+            "passed": True,
+            "sources": retrieved_sources,
+            "validation_skipped": True
+        }
+
+    validation_prompt = create_validation_prompt(context, answer_text)
+    validation_text = validate_answer(validation_prompt)
+    validation_json = json.loads(validation_text)
+
+    return {
+        "answer": answer_json,
+        "validation": validation_json,
+        "passed": validation_json.get("valid", False),
+        "sources": retrieved_sources,
+        "validation_skipped": False
+    }
 
 def build_vector_context(search_results):
     context_parts = []
@@ -146,6 +192,33 @@ QUESTION:
 
 RESPONSE (JSON only):"""
 
+
+def run_custom_query(question, context):
+    prompt = create_custom_prompt(question, context)
+    answer_text = generate_answer(prompt, "You are a helpful AI assistant.")
+
+    answer_json = json.loads(answer_text)
+    source_found = answer_json.get('source_found', False)
+
+    if not source_found:
+        return {
+            "answer": answer_json,
+            "validation": {"valid": True, "reason": "Out of scope - correctly handled"},
+            "passed": True,
+            "validation_skipped": True
+        }
+
+    validation_prompt = create_validation_prompt(context, answer_text)
+    validation_text = validate_answer(validation_prompt)
+    validation_json = json.loads(validation_text)
+
+    return {
+        "answer": answer_json,
+        "validation": validation_json,
+        "passed": validation_json.get("valid", False),
+        "validation_skipped": False
+    }
+
 # ============================================
 # VALIDATION FUNCTION (SHARED)
 # ============================================
@@ -186,47 +259,7 @@ def root():
 def query_vector_db(request: VectorQueryRequest):
     """Query using vector database (Ahex Technologies policies)"""
     try:
-        # Step 1: Retrieve from vector DB
-        search_results = retrieve_from_vector_db(request.question, top_k=3)
-        context = build_vector_context(search_results)
-        
-        retrieved_sources = [
-            {
-                "heading": result['entity']['heading'],
-                "similarity": float(result['distance'])
-            }
-            for result in search_results
-        ]
-        
-        # Step 2: Generate answer
-        prompt = create_vector_prompt(request.question, context)
-        answer_text = generate_answer(prompt, "You are a helpful HR assistant for Ahex Technologies.")
-        
-        answer_json = json.loads(answer_text)
-        source_found = answer_json.get('source_found', False)
-        
-        # Step 3: Validation (skip if source not found)
-        if not source_found:
-            return {
-                "answer": answer_json,
-                "validation": {"valid": True, "reason": "Out of scope - correctly handled"},
-                "passed": True,
-                "sources": retrieved_sources,
-                "validation_skipped": True
-            }
-        
-        validation_prompt = create_validation_prompt(context, answer_text)
-        validation_text = validate_answer(validation_prompt)
-        validation_json = json.loads(validation_text)
-        
-        return {
-            "answer": answer_json,
-            "validation": validation_json,
-            "passed": validation_json.get("valid", False),
-            "sources": retrieved_sources,
-            "validation_skipped": False
-        }
-        
+        return run_vector_query(request.question)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -234,36 +267,57 @@ def query_vector_db(request: VectorQueryRequest):
 def query_custom_context(request: CustomContextRequest):
     """Query using user-provided custom context"""
     try:
-        # Step 1: Use provided context directly
-        context = request.context
-        
-        # Step 2: Generate answer
-        prompt = create_custom_prompt(request.question, context)
-        answer_text = generate_answer(prompt, "You are a helpful AI assistant.")
-        
-        answer_json = json.loads(answer_text)
-        source_found = answer_json.get('source_found', False)
-        
-        # Step 3: Validation (skip if source not found)
-        if not source_found:
-            return {
-                "answer": answer_json,
-                "validation": {"valid": True, "reason": "Out of scope - correctly handled"},
-                "passed": True,
-                "validation_skipped": True
-            }
-        
-        validation_prompt = create_validation_prompt(context, answer_text)
-        validation_text = validate_answer(validation_prompt)
-        validation_json = json.loads(validation_text)
-        
-        return {
-            "answer": answer_json,
-            "validation": validation_json,
-            "passed": validation_json.get("valid", False),
-            "validation_skipped": False
-        }
-        
+        return run_custom_query(request.question, request.context)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/query/vector/batch-test")
+def batch_test_vector(request: BatchVectorQueryRequest):
+    try:
+        inputs = [item.strip() for item in request.inputs if item.strip()]
+        if not inputs:
+            raise HTTPException(status_code=400, detail="At least one input is required")
+
+        results = []
+        for question in inputs:
+            result = run_vector_query(question)
+            results.append(
+                {
+                    "Input": question,
+                    "Output": result["answer"].get("answer", ""),
+                    "Correct/Incorrect": "",
+                }
+            )
+
+        return {"rows": results}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/query/custom/batch-test")
+def batch_test_custom(request: BatchCustomContextRequest):
+    try:
+        inputs = [item.strip() for item in request.inputs if item.strip()]
+        if not inputs:
+            raise HTTPException(status_code=400, detail="At least one input is required")
+
+        results = []
+        for question in inputs:
+            result = run_custom_query(question, request.context)
+            results.append(
+                {
+                    "Input": question,
+                    "Output": result["answer"].get("answer", ""),
+                    "Correct/Incorrect": "",
+                }
+            )
+
+        return {"rows": results}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
