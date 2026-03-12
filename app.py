@@ -38,6 +38,7 @@ def run_progressive_test(test_inputs, endpoint, extra_payload=None, table_key="t
         result = response.json()
         rows.append(
             {
+                "Question No": index,
                 "Input": question,
                 "Output": result["answer"]["answer"],
                 "Correct/Incorrect": "Correct",
@@ -50,7 +51,14 @@ def run_progressive_test(test_inputs, endpoint, extra_payload=None, table_key="t
             pd.DataFrame(rows),
             use_container_width=True,
             num_rows="fixed",
+            hide_index=True,
             column_config={
+                "Question No": st.column_config.NumberColumn(
+                    "Question No",
+                    min_value=1,
+                    step=1,
+                    required=True,
+                ),
                 "Correct/Incorrect": st.column_config.SelectboxColumn(
                     "Correct/Incorrect",
                     options=["Correct", "Incorrect"],
